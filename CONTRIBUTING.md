@@ -28,7 +28,7 @@ The team works on a single trunk. Every change starts from an up-to-date `main`,
 2. Create a branch from `main` and move the story to In progress.
 3. Commit in small steps, each one checked before the next.
 4. Open a pull request that closes the story and move the story to In review.
-5. A teammate reviews it. After the approval, the author merges it and the board moves the story to Done.
+5. Ask a teammate to review it when one is free. The author merges it once every review conversation is resolved, and the board moves the story to Done.
 
 Work on one story at a time, with one pull request per story. There are no release, develop or long-lived feature branches.
 
@@ -71,7 +71,7 @@ Every change reaches `main` through a pull request, including changes by adminis
 - The title follows the commit format. Pull requests are squash merged, and the title becomes the commit on `main`, so it feeds the changelog and the release notes.
 - The description follows the template. It says what changed, links the story with `Closes <owner>/<repository>#<number>` and pastes the lines of output that prove each acceptance criterion.
 - Keep pull requests small enough to review in one sitting. A pull request that grows past one story should be split.
-- One approval from a teammate other than the author is required, except for the team leads, who should still ask for one whenever a reviewer is available. A new push dismisses earlier approvals, and every review conversation must be resolved before merging.
+- No approval is required to merge, for anyone. Ask a teammate to review whenever one is available, and resolve every review conversation before merging.
 - The reviewer checks the change against the acceptance criteria of the story, reads the evidence and tries the change when it is cheap to do so.
 - After the merge, GitHub deletes the remote branch. Delete your local branch by name.
 
@@ -109,12 +109,12 @@ Release tags cannot be moved or deleted. A mistake in a release is fixed by publ
 
 ## What the repositories enforce
 
-The public repositories enforce these rules. The two team leads can merge a pull request without the approval, which keeps work moving when no reviewer is free. Their changes still go through a pull request, and GitHub records every bypass in the audit log.
+The public repositories enforce these rules for everyone, administrators included.
 
 | Target | Rule |
 |---|---|
-| `main` | Changes only through a pull request with one approval |
-| `main` | New pushes dismiss earlier approvals, and review conversations must be resolved |
+| `main` | Changes only through a pull request |
+| `main` | Review conversations must be resolved before merging |
 | `main` | Squash is the only merge method, and the commit takes the pull request title |
 | `main` | It cannot be deleted or force pushed |
 | `v*` tags in module repositories | They cannot be moved or deleted |
