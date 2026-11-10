@@ -71,7 +71,7 @@ Every change reaches `main` through a pull request, including changes by adminis
 - The title follows the commit format. Pull requests are squash merged, and the title becomes the commit on `main`, so it feeds the changelog and the release notes.
 - The description follows the template. It says what changed, links the story with `Closes <owner>/<repository>#<number>` and pastes the lines of output that prove each acceptance criterion.
 - Keep pull requests small enough to review in one sitting. A pull request that grows past one story should be split.
-- One approval from a teammate other than the author is required. A new push dismisses earlier approvals, and every review conversation must be resolved before merging.
+- One approval from a teammate other than the author is required, except for the team leads, who should still ask for one whenever a reviewer is available. A new push dismisses earlier approvals, and every review conversation must be resolved before merging.
 - The reviewer checks the change against the acceptance criteria of the story, reads the evidence and tries the change when it is cheap to do so.
 - After the merge, GitHub deletes the remote branch. Delete your local branch by name.
 
@@ -109,7 +109,7 @@ Release tags cannot be moved or deleted. A mistake in a release is fixed by publ
 
 ## What the repositories enforce
 
-The public repositories enforce these rules, and nobody can bypass them, administrators included.
+The public repositories enforce these rules. The two team leads can merge a pull request without the approval, which keeps work moving when no reviewer is free. Their changes still go through a pull request, and GitHub records every bypass in the audit log.
 
 | Target | Rule |
 |---|---|
