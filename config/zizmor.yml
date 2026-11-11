@@ -1,0 +1,7 @@
+# Workflows of the organization may call its own reusable workflows by branch. Everything else is pinned by SHA.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "aromapacifico-devops/*": ref-pin
+        "*": hash-pin

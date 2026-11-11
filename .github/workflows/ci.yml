@@ -1,0 +1,50 @@
+# Checks of this repository, which holds the shared workflows, scripts and configuration.
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check the pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|chore|refactor|test|ci|build|perf|style|revert)(\([a-z0-9-]+\))?!?: [^ ].*$'
+          if ! printf '%s' "$TITLE" | grep -Eq "$pattern"; then
+            echo "::error::the title must follow Conventional Commits, such as feat: add the work queue"
+            exit 1
+          fi
+
+      - name: Install tools
+        run: |
+          scripts/install-tool.sh gitleaks
+          scripts/install-tool.sh actionlint
+          scripts/install-tool.sh zizmor
+
+      - name: Tests of the project rule check
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Workflows
+        run: |
+          actionlint -color=false
+          zizmor --offline --config config/zizmor.yml .github/workflows
+
+      - name: Secrets in the history
+        run: gitleaks git --no-banner --redact .

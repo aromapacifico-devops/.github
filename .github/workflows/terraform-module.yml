@@ -1,0 +1,116 @@
+# Checks of a Terraform module repository, called from each module on pull requests and on main.
+name: terraform-module
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check the pull request title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|chore|refactor|test|ci|build|perf|style|revert)(\([a-z0-9-]+\))?!?: [^ ].*$'
+          if ! printf '%s' "$TITLE" | grep -Eq "$pattern"; then
+            echo "::error::the title must follow Conventional Commits, such as feat: add the work queue"
+            exit 1
+          fi
+
+  terraform:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aromapacifico-devops/.github
+          ref: main
+          path: .shared
+          persist-credentials: false
+
+      - name: Install tools
+        run: |
+          .shared/scripts/install-tool.sh terraform
+          .shared/scripts/install-tool.sh tflint
+
+      - name: Terraform version matches the repository
+        run: |
+          if [ -f .terraform-version ] && [ "$(cat .terraform-version)" != "1.17.1" ]; then
+            echo "::error::.terraform-version says $(cat .terraform-version) and the checks use 1.17.1"
+            exit 1
+          fi
+
+      - name: Format
+        run: terraform fmt -check -recursive -diff
+
+      - name: Tests
+        run: |
+          terraform init -backend=false -input=false -no-color
+          terraform test -no-color
+
+      - name: Validate the sample
+        run: |
+          terraform -chdir=sample init -backend=false -input=false -no-color
+          terraform -chdir=sample validate -no-color
+
+      - name: TFLint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --config "$GITHUB_WORKSPACE/.shared/config/tflint.hcl" --init
+          tflint --config "$GITHUB_WORKSPACE/.shared/config/tflint.hcl" --recursive --format compact
+
+      - name: Project rules
+        run: python3 .shared/scripts/pc_iac_check.py module .
+
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aromapacifico-devops/.github
+          ref: main
+          path: .shared
+          persist-credentials: false
+
+      - name: Install tools
+        run: |
+          .shared/scripts/install-tool.sh gitleaks
+          .shared/scripts/install-tool.sh actionlint
+          .shared/scripts/install-tool.sh zizmor
+
+      - name: Checkov
+        run: |
+          docker run --rm -v "$PWD:/tf" -w /tf \
+            docker.io/bridgecrew/checkov@sha256:bfe9d70bb7f044aba49bd99675813445f106dee6072da583f51008cb667f3a63 \
+            -d . --framework terraform --skip-path .shared --skip-path .terraform --quiet --compact
+
+      - name: Secrets in the history
+        run: gitleaks git --no-banner --redact .
+
+      - name: Workflows
+        run: |
+          if [ -d .github/workflows ]; then
+            actionlint -color=false
+            zizmor --offline --config .shared/config/zizmor.yml .github/workflows
+          fi
