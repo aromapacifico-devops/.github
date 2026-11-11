@@ -77,13 +77,15 @@ Every change reaches `main` through a pull request, including changes by adminis
 
 ## Checks before review
 
-Run the checks of the repository before asking for a review, and paste their result in the pull request.
+Every Terraform repository runs the shared checks of this repository on each pull request and on `main`, and a failed check blocks the review. Run them locally before pushing when a change is large.
 
 | Repository | Checks |
 |---|---|
-| Terraform modules | `terraform fmt -check -recursive`, `terraform test`, `terraform validate` in `sample/`, TFLint, Checkov and gitleaks |
-| Infrastructure roots | `terraform fmt -check -recursive`, `terraform validate` in each environment, and the `terraform plan` of the environment the change targets |
+| Terraform modules | Pull request title, `terraform fmt -check -recursive`, `terraform test`, `terraform validate` in `sample/`, TFLint with the AWS ruleset, the project rule check, Checkov, gitleaks, actionlint and zizmor |
+| Infrastructure roots | The same checks with `terraform validate` in each root, and the `terraform plan` of every environment with its cost, commented by the pipeline |
 | Documentation | Links resolve, and diagrams are exported again when their source changes |
+
+An accepted Checkov finding gets a `checkov:skip` comment inside the resource, with the reason, and a row with the same reason and its end condition in `docs/iac-exceptions.md`.
 
 Modules declare provider aliases with `configuration_aliases`, and `terraform validate` fails on such a module when it runs on its own. That is why modules are validated through `terraform test` and the `sample/` folder.
 
@@ -101,9 +103,13 @@ Modules are published with [Semantic Versioning 2.0.0](https://semver.org/spec/v
 | Adds an optional input, an output or a resource that existing callers do not get by default | Minor |
 | Fixes behavior without changing the interface | Patch |
 
+Release-please reads the commits on `main` and keeps one open release pull request that updates `CHANGELOG.md` and `.release-please-manifest.json`. A `fix` raises the patch, a `feat` the minor and a breaking change the major. While a module is below `1.0.0`, a breaking change raises the minor.
+
 1. Merge the changes to `main`.
-2. Open a `chore: release X.Y.Z` pull request that moves the entries of `CHANGELOG.md` under the new version.
-3. After it merges, tag that commit as `vX.Y.Z` and push the tag.
+2. Merge the release pull request when the version should be published.
+3. Release-please tags that commit as `vX.Y.Z` and publishes a GitHub release.
+
+The release pull request is opened by GitHub Actions, so the checks do not run on it. It only changes the changelog and the manifest.
 
 Release tags cannot be moved or deleted. A mistake in a release is fixed by publishing a new patch version.
 

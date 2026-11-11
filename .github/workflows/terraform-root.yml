@@ -1,0 +1,117 @@
+# Checks of a repository of Terraform roots, called on pull requests and on main.
+name: terraform-root
+
+on:
+  workflow_call:
+    inputs:
+      roots:
+        description: Space separated root directories to validate
+        type: string
+        default: envs/dev envs/test envs/prod bootstrap
+
+permissions: {}
+
+jobs:
+  title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Check the pull request title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|chore|refactor|test|ci|build|perf|style|revert)(\([a-z0-9-]+\))?!?: [^ ].*$'
+          if ! printf '%s' "$TITLE" | grep -Eq "$pattern"; then
+            echo "::error::the title must follow Conventional Commits, such as feat: add the work queue"
+            exit 1
+          fi
+
+  terraform:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      ROOTS: ${{ inputs.roots }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aromapacifico-devops/.github
+          ref: main
+          path: .shared
+          persist-credentials: false
+
+      - name: Install tools
+        run: |
+          .shared/scripts/install-tool.sh terraform
+          .shared/scripts/install-tool.sh tflint
+
+      - name: Format
+        run: terraform fmt -check -recursive -diff
+
+      - name: Validate each root
+        run: |
+          for root in $ROOTS; do
+            echo "::group::$root"
+            terraform -chdir="$root" init -backend=false -input=false -no-color
+            terraform -chdir="$root" validate -no-color
+            echo "::endgroup::"
+          done
+
+      - name: TFLint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --config "$GITHUB_WORKSPACE/.shared/config/tflint.hcl" --init
+          tflint --config "$GITHUB_WORKSPACE/.shared/config/tflint.hcl" --recursive --format compact
+
+      - name: Project rules
+        run: |
+          read -r -a dirs <<< "$ROOTS"
+          python3 .shared/scripts/pc_iac_check.py root "${dirs[@]}"
+
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aromapacifico-devops/.github
+          ref: main
+          path: .shared
+          persist-credentials: false
+
+      - name: Install tools
+        run: |
+          .shared/scripts/install-tool.sh gitleaks
+          .shared/scripts/install-tool.sh actionlint
+          .shared/scripts/install-tool.sh zizmor
+
+      - name: Checkov
+        run: |
+          docker run --rm -v "$PWD:/tf" -w /tf \
+            docker.io/bridgecrew/checkov@sha256:bfe9d70bb7f044aba49bd99675813445f106dee6072da583f51008cb667f3a63 \
+            -d . --framework terraform --skip-path .shared --skip-path .terraform --quiet --compact
+
+      - name: Secrets in the history
+        run: gitleaks git --no-banner --redact .
+
+      - name: Workflows
+        run: |
+          if [ -d .github/workflows ]; then
+            actionlint -color=false
+            zizmor --offline --config .shared/config/zizmor.yml .github/workflows
+          fi
